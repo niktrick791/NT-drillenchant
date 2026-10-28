@@ -38,7 +38,7 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveBaseName.set("DrillEnchant")
+    archiveBaseName.set("NT-drillenchant")
     archiveClassifier.set("")
     archiveVersion.set("1.0.0")
 }

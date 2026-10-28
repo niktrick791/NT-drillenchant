@@ -1,7 +1,8 @@
-name: DrillEnchant
+name: NT-drillenchant
 version: '${version}'
 main: de.drill.DrillPlugin
 author: Antigravity
+website: https://github.com/niktrick791/NT-drillenchant
 description: 'Drill Verzauberung fuer 2x2 und 3x3 Abbauen und Feld-Bestellung.'
 
 commands:

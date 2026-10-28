@@ -1,4 +1,4 @@
-# DrillEnchant
+# NT-drillenchant
 
 [![Language: English](https://img.shields.io/badge/Language-English-blue.svg)](#)
 [![Deutsch](https://img.shields.io/badge/Sprache-Deutsch-orange.svg)](README_DE.md)
