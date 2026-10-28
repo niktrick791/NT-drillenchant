@@ -234,7 +234,8 @@ public class DrillEnchantment {
         ItemStack book = new ItemStack(XDrillVersion.getEnchantedBookMaterial(), 1);
         ItemMeta meta = book.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(XDrillVersion.colorize("&bVerzaubertes Buch"));
+            boolean isDe = plugin.getConfigManager() != null && "de".equalsIgnoreCase(plugin.getConfigManager().getLanguage());
+            meta.setDisplayName(XDrillVersion.colorize(isDe ? "&bVerzaubertes Buch" : "&bEnchanted Book"));
             book.setItemMeta(meta);
         }
         return applyDrill(book, level);
