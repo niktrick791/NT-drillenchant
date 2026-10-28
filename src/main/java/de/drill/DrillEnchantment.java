@@ -1,10 +1,6 @@
 package de.drill;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.Material;
+import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -12,6 +8,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class DrillEnchantment {
@@ -23,16 +20,22 @@ public class DrillEnchantment {
     public static final String MODE_2X2 = "2x2";
     public static final String MODE_3X3 = "3x3";
 
-    private final NamespacedKey keyLevel;
-    private final NamespacedKey keyMode;
-    private final NamespacedKey keyEnabled;
+    private NamespacedKey keyLevel;
+    private NamespacedKey keyMode;
+    private NamespacedKey keyEnabled;
     private final DrillPlugin plugin;
 
     public DrillEnchantment(DrillPlugin plugin) {
         this.plugin = plugin;
-        this.keyLevel = new NamespacedKey(plugin, KEY_LEVEL_NAME);
-        this.keyMode = new NamespacedKey(plugin, KEY_MODE_NAME);
-        this.keyEnabled = new NamespacedKey(plugin, KEY_ENABLED_NAME);
+        try {
+            this.keyLevel = new NamespacedKey(plugin, KEY_LEVEL_NAME);
+            this.keyMode = new NamespacedKey(plugin, KEY_MODE_NAME);
+            this.keyEnabled = new NamespacedKey(plugin, KEY_ENABLED_NAME);
+        } catch (Throwable ignored) {
+            this.keyLevel = null;
+            this.keyMode = null;
+            this.keyEnabled = null;
+        }
     }
 
     public NamespacedKey getKeyLevel() {
@@ -52,99 +55,109 @@ public class DrillEnchantment {
     }
 
     public int getLevel(ItemStack item) {
-        if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+        if (item == null || item.getType().name().endsWith("AIR") || !item.hasItemMeta()) {
             return 0;
         }
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        Integer level = pdc.get(keyLevel, PersistentDataType.INTEGER);
-        return level != null ? level : 0;
+        if (meta == null) return 0;
+
+        int pdcLvl = XDrillVersion.getPdcLevel(meta, keyLevel);
+        if (pdcLvl > 0) return pdcLvl;
+
+        if (meta.hasLore()) {
+            List<String> lore = meta.getLore();
+            if (lore != null) {
+                for (String line : lore) {
+                    String clean = ChatColor.stripColor(line).trim();
+                    if (clean.equalsIgnoreCase("Drill I")) return 1;
+                    if (clean.equalsIgnoreCase("Drill II")) return 2;
+                    if (clean.toLowerCase().startsWith("drill ")) {
+                        String roman = clean.substring(6).trim();
+                        int parsed = fromRoman(roman);
+                        if (parsed > 0) return parsed;
+                    }
+                }
+            }
+        }
+        return 0;
     }
 
     public boolean isEnabled(ItemStack item) {
         if (!hasDrill(item)) return false;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return true;
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        Integer enabled = pdc.get(keyEnabled, PersistentDataType.INTEGER);
-        return enabled == null || enabled == 1;
+
+        if (XDrillVersion.HAS_PDC && keyEnabled != null) {
+            try {
+                PersistentDataContainer pdc = meta.getPersistentDataContainer();
+                Integer enabled = pdc.get(keyEnabled, PersistentDataType.INTEGER);
+                return enabled == null || enabled == 1;
+            } catch (Throwable ignored) {}
+        }
+        return true;
     }
 
     public void setEnabled(ItemStack item, boolean enabled) {
-        if (item == null || !item.hasItemMeta()) return;
-        int level = getLevel(item);
-        if (level <= 0) return;
-
+        if (!hasDrill(item)) return;
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        pdc.set(keyEnabled, PersistentDataType.INTEGER, enabled ? 1 : 0);
-        item.setItemMeta(meta);
+        if (meta == null) return;
 
-        // Update lore
-        applyDrill(item, level, getMode(item), enabled);
+        if (XDrillVersion.HAS_PDC && keyEnabled != null) {
+            try {
+                PersistentDataContainer pdc = meta.getPersistentDataContainer();
+                pdc.set(keyEnabled, PersistentDataType.INTEGER, enabled ? 1 : 0);
+                item.setItemMeta(meta);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    public String getMode(ItemStack item) {
+        if (!hasDrill(item)) return MODE_3X3;
+        int level = getLevel(item);
+        if (level == 1) return MODE_2X2;
+        if (level >= 2) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && XDrillVersion.HAS_PDC && keyMode != null) {
+                try {
+                    String mode = meta.getPersistentDataContainer().get(keyMode, PersistentDataType.STRING);
+                    if (mode != null) return mode;
+                } catch (Throwable ignored) {}
+            }
+            return MODE_3X3;
+        }
+        return MODE_3X3;
+    }
+
+    public void setMode(ItemStack item, String mode) {
+        if (getLevel(item) < 2) return;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        if (XDrillVersion.HAS_PDC && keyMode != null) {
+            try {
+                PersistentDataContainer pdc = meta.getPersistentDataContainer();
+                pdc.set(keyMode, PersistentDataType.STRING, mode);
+                item.setItemMeta(meta);
+            } catch (Throwable ignored) {}
+        }
     }
 
     public boolean toggleEnabled(ItemStack item) {
-        boolean newState = !isEnabled(item);
+        boolean current = isEnabled(item);
+        boolean newState = !current;
         setEnabled(item, newState);
         return newState;
     }
 
-    public String getMode(ItemStack item) {
-        int level = getLevel(item);
-        if (level <= 0) return null;
-        if (level == 1) return MODE_2X2;
-        if (level == 2) return MODE_3X3;
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return MODE_3X3;
-
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        String mode = pdc.get(keyMode, PersistentDataType.STRING);
-        return (mode != null && mode.equals(MODE_2X2)) ? MODE_2X2 : MODE_3X3;
-    }
-
     public String toggleMode(ItemStack item) {
-        if (item == null || getLevel(item) != 3) {
-            return null;
-        }
-
         String current = getMode(item);
-        String next = MODE_2X2.equals(current) ? MODE_3X3 : MODE_2X2;
+        String next = current.equals(MODE_2X2) ? MODE_3X3 : MODE_2X2;
         setMode(item, next);
         return next;
     }
 
-    public void setMode(ItemStack item, String mode) {
-        if (item == null || !item.hasItemMeta()) return;
-        int level = getLevel(item);
-        if (level != 3) return;
-
-        ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        pdc.set(keyMode, PersistentDataType.STRING, mode);
-        item.setItemMeta(meta);
-
-        applyDrill(item, level, mode, isEnabled(item));
-    }
-
     public ItemStack applyDrill(ItemStack item, int level) {
-        String defaultMode = level == 1 ? MODE_2X2 : MODE_3X3;
-        if (level == 3) {
-            String existingMode = getMode(item);
-            if (existingMode != null) {
-                defaultMode = existingMode;
-            }
-        }
-        return applyDrill(item, level, defaultMode, isEnabled(item));
-    }
-
-    public ItemStack applyDrill(ItemStack item, int level, String mode) {
-        return applyDrill(item, level, mode, isEnabled(item));
-    }
-
-    public ItemStack applyDrill(ItemStack item, int level, String mode, boolean enabled) {
-        if (item == null || item.getType().isAir()) {
+        if (item == null || item.getType().name().endsWith("AIR")) {
             return item;
         }
         if (level <= 0) {
@@ -152,54 +165,34 @@ public class DrillEnchantment {
         }
 
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return item;
+        if (meta == null) return item;
+
+        XDrillVersion.setPdcLevel(meta, keyLevel, level);
+        XDrillVersion.setGlint(meta);
+
+        if (XDrillVersion.HAS_PDC) {
+            try {
+                PersistentDataContainer pdc = meta.getPersistentDataContainer();
+                if (keyEnabled != null) pdc.set(keyEnabled, PersistentDataType.INTEGER, 1);
+                if (keyMode != null && !pdc.has(keyMode, PersistentDataType.STRING)) {
+                    pdc.set(keyMode, PersistentDataType.STRING, level == 1 ? MODE_2X2 : MODE_3X3);
+                }
+            } catch (Throwable ignored) {}
         }
 
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        pdc.set(keyLevel, PersistentDataType.INTEGER, level);
-        pdc.set(keyEnabled, PersistentDataType.INTEGER, enabled ? 1 : 0);
+        // Update Lore
+        String drillLine = "§7Drill " + toRoman(level);
 
-        if (level == 3) {
-            pdc.set(keyMode, PersistentDataType.STRING, mode != null ? mode : MODE_3X3);
-        } else {
-            pdc.remove(keyMode);
+        List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
+        Iterator<String> it = lore.iterator();
+        while (it.hasNext()) {
+            String clean = ChatColor.stripColor(it.next()).trim();
+            if (clean.toLowerCase().startsWith("drill ")) {
+                it.remove();
+            }
         }
-
-        meta.setEnchantmentGlintOverride(true);
-
-        Component drillLine;
-        boolean isBook = item.getType() == Material.BOOK || item.getType() == Material.ENCHANTED_BOOK;
-
-        if (!enabled && !isBook) {
-            drillLine = Component.text("Drill " + toRoman(level) + " ")
-                    .color(NamedTextColor.DARK_GRAY)
-                    .decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text("[DEAKTIVIERT]").color(NamedTextColor.RED));
-        } else if (level == 3 && !isBook) {
-            drillLine = Component.text("Drill III ")
-                    .color(NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text("[" + (mode != null ? mode : MODE_3X3) + "]").color(NamedTextColor.GOLD));
-        } else {
-            drillLine = Component.text("Drill " + toRoman(level))
-                    .color(NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false);
-        }
-
-        List<Component> lore = meta.lore();
-        if (lore == null) {
-            lore = new ArrayList<>();
-        } else {
-            lore = new ArrayList<>(lore);
-            lore.removeIf(line -> {
-                String plain = PlainTextComponentSerializer.plainText().serialize(line);
-                return plain.toLowerCase().startsWith("drill ");
-            });
-        }
-
         lore.add(0, drillLine);
-        meta.lore(lore);
+        meta.setLore(lore);
 
         item.setItemMeta(meta);
         return item;
@@ -211,65 +204,78 @@ public class DrillEnchantment {
         }
 
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        if (pdc.has(keyLevel, PersistentDataType.INTEGER)) {
-            pdc.remove(keyLevel);
-            pdc.remove(keyMode);
-            pdc.remove(keyEnabled);
+        if (meta == null) return item;
 
-            List<Component> lore = meta.lore();
-            if (lore != null) {
-                lore = new ArrayList<>(lore);
-                lore.removeIf(line -> {
-                    String plain = PlainTextComponentSerializer.plainText().serialize(line);
-                    return plain.toLowerCase().startsWith("drill ");
-                });
-                meta.lore(lore.isEmpty() ? null : lore);
-            }
-
-            if (meta.getEnchants().isEmpty()) {
-                meta.setEnchantmentGlintOverride(null);
-            }
-
-            item.setItemMeta(meta);
+        XDrillVersion.removePdcLevel(meta, keyLevel);
+        if (XDrillVersion.HAS_PDC) {
+            try {
+                if (keyMode != null) meta.getPersistentDataContainer().remove(keyMode);
+                if (keyEnabled != null) meta.getPersistentDataContainer().remove(keyEnabled);
+            } catch (Throwable ignored) {}
         }
+
+        if (meta.hasLore()) {
+            List<String> lore = new ArrayList<>(meta.getLore());
+            Iterator<String> it = lore.iterator();
+            while (it.hasNext()) {
+                String clean = ChatColor.stripColor(it.next()).trim();
+                if (clean.toLowerCase().startsWith("drill ")) {
+                    it.remove();
+                }
+            }
+            meta.setLore(lore);
+        }
+
+        item.setItemMeta(meta);
         return item;
     }
 
     public ItemStack createBook(int level) {
-        return createBook(level, level == 1 ? MODE_2X2 : MODE_3X3);
-    }
-
-    public ItemStack createBook(int level, String mode) {
-        ItemStack book = new ItemStack(Material.ENCHANTED_BOOK);
+        ItemStack book = new ItemStack(XDrillVersion.getEnchantedBookMaterial(), 1);
         ItemMeta meta = book.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Verzaubertes Buch")
-                    .color(NamedTextColor.YELLOW)
-                    .decoration(TextDecoration.ITALIC, false));
+            meta.setDisplayName(XDrillVersion.colorize("&bVerzaubertes Buch"));
             book.setItemMeta(meta);
         }
-        return applyDrill(book, level, mode, true);
+        return applyDrill(book, level);
     }
 
     public boolean isApplicable(ItemStack item) {
-        if (item == null || item.getType().isAir()) return false;
-        Material mat = item.getType();
-        if (mat == Material.BOOK || mat == Material.ENCHANTED_BOOK) return true;
+        if (item == null || item.getType().name().endsWith("AIR")) {
+            return false;
+        }
+        String name = item.getType().name();
+        ConfigManager config = plugin.getConfigManager();
 
-        String name = mat.name();
-        if (name.endsWith("_SWORD")) return false;
+        if (config.isPickaxeAllowed() && name.endsWith("_PICKAXE")) return true;
+        if (config.isShovelAllowed() && name.endsWith("_SHOVEL")) return true;
+        if (config.isHoeAllowed() && name.endsWith("_HOE")) return true;
+        if (name.equals("BOOK") || name.equals("ENCHANTED_BOOK")) return true;
 
-        return name.endsWith("_PICKAXE") || name.endsWith("_SHOVEL") ||
-               name.endsWith("_AXE") || name.endsWith("_HOE");
+        return false;
     }
 
-    public static String toRoman(int number) {
-        return switch (number) {
-            case 1 -> "I";
-            case 2 -> "II";
-            case 3 -> "III";
-            default -> String.valueOf(number);
-        };
+    public static String toRoman(int n) {
+        switch (n) {
+            case 1: return "I";
+            case 2: return "II";
+            case 3: return "III";
+            default: return String.valueOf(n);
+        }
+    }
+
+    public static int fromRoman(String roman) {
+        if (roman == null) return 0;
+        switch (roman.toUpperCase().trim()) {
+            case "I": return 1;
+            case "II": return 2;
+            case "III": return 3;
+            default:
+                try {
+                    return Integer.parseInt(roman);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
+        }
     }
 }

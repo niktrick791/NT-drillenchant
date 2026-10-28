@@ -1,6 +1,0 @@
-name: DrillEnchant
-version: '${version}'
-main: de.drill.DrillPlugin
-api-version: '1.21'
-author: Antigravity
-description: 'Drill Verzauberung fuer 2x2 und 3x3 Abbauen und Feld-Bestellung.'

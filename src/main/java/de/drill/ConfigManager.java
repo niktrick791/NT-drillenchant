@@ -63,6 +63,10 @@ public class ConfigManager {
         this.piglinBarterChance = config.getDouble("drill.piglin-barter.chance", 0.03);
     }
 
+    public boolean isPickaxeAllowed() { return true; }
+    public boolean isShovelAllowed() { return true; }
+    public boolean isHoeAllowed() { return true; }
+
     public boolean isEnabled() { return enabled; }
     public int getMaxLevel() { return maxLevel; }
     public boolean isDamageToolPerBlock() { return damageToolPerBlock; }

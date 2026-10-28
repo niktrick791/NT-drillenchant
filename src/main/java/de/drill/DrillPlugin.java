@@ -23,10 +23,19 @@ public class DrillPlugin extends JavaPlugin {
         // Enchantment core
         this.drillEnchantment = new DrillEnchantment(this);
 
-        // Listeners
+        // Core Listeners
         getServer().getPluginManager().registerEvents(new DrillMiningListener(this, this.drillEnchantment), this);
         getServer().getPluginManager().registerEvents(new DrillDiscoveryListener(this, this.drillEnchantment), this);
         getServer().getPluginManager().registerEvents(new DrillAnvilListener(this, this.drillEnchantment), this);
+
+        // Modern 1.13+ listeners
+        try {
+            Class.forName("org.bukkit.event.world.LootGenerateEvent");
+            getServer().getPluginManager().registerEvents(new ModernDrillDiscoveryListener(this, this.drillEnchantment), this);
+            getLogger().info("Modern discovery features enabled (LootChests, VillagerTrades, PiglinBarter).");
+        } catch (ClassNotFoundException ignored) {
+            getLogger().info("Legacy Minecraft version detected (< 1.13). Modern loot listeners skipped.");
+        }
 
         // Commands
         PluginCommand drillCmd = getCommand("drill");
@@ -37,7 +46,7 @@ public class DrillPlugin extends JavaPlugin {
         }
 
         getLogger().info("=================================================");
-        getLogger().info("DrillEnchant v" + getPluginMeta().getVersion() + " wurde erfolgreich aktiviert!");
+        getLogger().info("DrillEnchant v" + getDescription().getVersion() + " wurde erfolgreich aktiviert!");
         getLogger().info("2x2 und 3x3 Abbauen & Hoe-Bodenbestellung aktiv.");
         getLogger().info("=================================================");
     }

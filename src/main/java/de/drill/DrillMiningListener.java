@@ -1,6 +1,10 @@
 package de.drill;
 
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -11,19 +15,25 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DrillMiningListener implements Listener {
 
     private final DrillPlugin plugin;
     private final DrillEnchantment drillEnchantment;
-    private final ThreadLocal<Boolean> isProcessingDrill = ThreadLocal.withInitial(() -> false);
+    private final ThreadLocal<Boolean> isProcessingDrill = new ThreadLocal<Boolean>() {
+        @Override
+        protected Boolean initialValue() {
+            return false;
+        }
+    };
 
     private final Map<UUID, BlockFace> lastClickedFace = new ConcurrentHashMap<>();
     private final Map<UUID, Vector> lastHitPosition = new ConcurrentHashMap<>();
@@ -31,6 +41,15 @@ public class DrillMiningListener implements Listener {
     public DrillMiningListener(DrillPlugin plugin, DrillEnchantment drillEnchantment) {
         this.plugin = plugin;
         this.drillEnchantment = drillEnchantment;
+    }
+
+    private Vector getSafeInteractionPoint(PlayerInteractEvent event) {
+        try {
+            Method m = event.getClass().getMethod("getInteractionPoint");
+            Location loc = (Location) m.invoke(event);
+            if (loc != null) return loc.toVector();
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -42,8 +61,9 @@ public class DrillMiningListener implements Listener {
             if (event.getBlockFace() != null) {
                 lastClickedFace.put(player.getUniqueId(), event.getBlockFace());
             }
-            if (event.getInteractionPoint() != null) {
-                lastHitPosition.put(player.getUniqueId(), event.getInteractionPoint().toVector());
+            Vector point = getSafeInteractionPoint(event);
+            if (point != null) {
+                lastHitPosition.put(player.getUniqueId(), point);
             }
             return;
         }
@@ -54,7 +74,7 @@ public class DrillMiningListener implements Listener {
                 return;
             }
 
-            ItemStack item = event.getItem();
+            ItemStack item = XDrillVersion.getItemInHand(player);
             if (item == null || !drillEnchantment.hasDrill(item) || !drillEnchantment.isEnabled(item)) {
                 return;
             }
@@ -78,7 +98,7 @@ public class DrillMiningListener implements Listener {
                 mode = DrillEnchantment.MODE_3X3;
             }
 
-            Vector hit = event.getInteractionPoint() != null ? event.getInteractionPoint().toVector() : null;
+            Vector hit = getSafeInteractionPoint(event);
             tillArea(player, item, origin, mode, hit);
         }
     }
@@ -95,7 +115,7 @@ public class DrillMiningListener implements Listener {
             }
 
             Block above = target.getRelative(BlockFace.UP);
-            if (!above.getType().isAir()) {
+            if (!above.getType().name().endsWith("AIR")) {
                 if (isReplaceablePlant(above.getType())) {
                     if (plugin.getConfigManager().isHoeBreakReplaceablePlants()) {
                         above.breakNaturally();
@@ -107,17 +127,7 @@ public class DrillMiningListener implements Listener {
                 }
             }
 
-            Material currentType = target.getType();
-            if (currentType == Material.COARSE_DIRT) {
-                target.setType(Material.DIRT);
-            } else if (currentType == Material.ROOTED_DIRT) {
-                target.setType(Material.DIRT);
-                world.dropItemNaturally(target.getLocation().add(0.5, 1.0, 0.5), new ItemStack(Material.HANGING_ROOTS));
-            } else {
-                target.setType(Material.FARMLAND);
-            }
-
-            world.spawnParticle(Particle.BLOCK, target.getLocation().add(0.5, 1.0, 0.5), 6, 0.2, 0.1, 0.2, target.getBlockData());
+            target.setType(XDrillVersion.FARMLAND_MAT);
             tilledCount++;
 
             if (player.getGameMode() != GameMode.CREATIVE && plugin.getConfigManager().isDamageToolPerBlock()) {
@@ -131,8 +141,10 @@ public class DrillMiningListener implements Listener {
         }
 
         if (tilledCount > 0) {
-            world.playSound(origin.getLocation(), Sound.ITEM_HOE_TILL, 1.0f, 1.0f);
-            player.swingMainHand();
+            XDrillVersion.playSound(player, "ITEM_HOE_TILL", "DIG_GRASS", 1.0f, 1.0f);
+            try {
+                player.getClass().getMethod("swingMainHand").invoke(player);
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -143,14 +155,15 @@ public class DrillMiningListener implements Listener {
         }
 
         Player player = event.getPlayer();
-        ItemStack tool = player.getInventory().getItemInMainHand();
+        ItemStack tool = XDrillVersion.getItemInHand(player);
+        if (tool == null) return;
 
-        if (tool.getType().isAir() || !drillEnchantment.hasDrill(tool) || !drillEnchantment.isEnabled(tool)) {
+        if (tool.getType().name().endsWith("AIR") || !drillEnchantment.hasDrill(tool) || !drillEnchantment.isEnabled(tool)) {
             return;
         }
 
         Block origin = event.getBlock();
-        if (origin.getType().isAir() || origin.getType().getHardness() < 0) {
+        if (origin.getType().name().endsWith("AIR")) {
             return;
         }
 
@@ -176,7 +189,7 @@ public class DrillMiningListener implements Listener {
         try {
             for (Block target : targets) {
                 if (target.equals(origin)) continue;
-                if (target.getType().isAir() || target.getType().getHardness() < 0) continue;
+                if (target.getType().name().endsWith("AIR")) continue;
 
                 if (player.getGameMode() != GameMode.CREATIVE && plugin.getConfigManager().isStopBeforeBreak() && isToolBrokenOrNearBreak(tool)) {
                     break;
@@ -186,10 +199,24 @@ public class DrillMiningListener implements Listener {
                     continue;
                 }
 
-                player.breakBlock(target);
+                breakBlock(player, target, tool);
             }
         } finally {
             isProcessingDrill.set(false);
+        }
+    }
+
+    private void breakBlock(Player player, Block target, ItemStack tool) {
+        try {
+            Method m = player.getClass().getMethod("breakBlock", Block.class);
+            m.invoke(player, target);
+            return;
+        } catch (Throwable ignored) {}
+
+        BlockBreakEvent breakEvent = new BlockBreakEvent(target, player);
+        Bukkit.getPluginManager().callEvent(breakEvent);
+        if (!breakEvent.isCancelled()) {
+            target.breakNaturally(tool);
         }
     }
 
@@ -199,16 +226,27 @@ public class DrillMiningListener implements Listener {
             return cached;
         }
 
-        RayTraceResult ray = player.rayTraceBlocks(5.0);
-        if (ray != null && ray.getHitBlockFace() != null) {
-            return ray.getHitBlockFace();
-        }
+        try {
+            Method rt = player.getClass().getMethod("rayTraceBlocks", double.class);
+            Object ray = rt.invoke(player, 5.0);
+            if (ray != null) {
+                Method getFace = ray.getClass().getMethod("getHitBlockFace");
+                BlockFace bf = (BlockFace) getFace.invoke(ray);
+                if (bf != null) return bf;
+            }
+        } catch (Throwable ignored) {}
 
         float pitch = player.getLocation().getPitch();
         if (pitch > 45) return BlockFace.UP;
         if (pitch < -45) return BlockFace.DOWN;
 
-        return player.getFacing().getOppositeFace();
+        try {
+            Method getFacing = player.getClass().getMethod("getFacing");
+            BlockFace facing = (BlockFace) getFacing.invoke(player);
+            if (facing != null) return facing.getOppositeFace();
+        } catch (Throwable ignored) {}
+
+        return BlockFace.UP;
     }
 
     private List<Block> calculateBlocksToBreak(Player player, Block origin, BlockFace face, String mode, Vector hit, ItemStack tool) {
@@ -313,20 +351,17 @@ public class DrillMiningListener implements Listener {
     }
 
     private boolean isTillable(Material mat) {
-        return mat == Material.GRASS_BLOCK || mat == Material.DIRT_PATH ||
-               mat == Material.DIRT || mat == Material.COARSE_DIRT || mat == Material.ROOTED_DIRT;
+        if (mat == null) return false;
+        String name = mat.name();
+        return name.contains("GRASS") || name.contains("DIRT") || name.contains("PATH");
     }
 
     private boolean isReplaceablePlant(Material mat) {
-        return mat == Material.SHORT_GRASS || mat == Material.TALL_GRASS ||
-               mat == Material.FERN || mat == Material.LARGE_FERN ||
-               mat == Material.DANDELION || mat == Material.POPPY ||
-               mat == Material.BLUE_ORCHID || mat == Material.ALLIUM ||
-               mat == Material.AZURE_BLUET || mat == Material.RED_TULIP ||
-               mat == Material.ORANGE_TULIP || mat == Material.WHITE_TULIP ||
-               mat == Material.PINK_TULIP || mat == Material.OXEYE_DAISY ||
-               mat == Material.CORNFLOWER || mat == Material.LILY_OF_THE_VALLEY ||
-               mat == Material.TORCHFLOWER || mat == Material.DEAD_BUSH;
+        if (mat == null) return false;
+        String name = mat.name();
+        return name.contains("GRASS") || name.contains("FERN") || name.contains("FLOWER") ||
+               name.contains("TULIP") || name.contains("DANDELION") || name.contains("POPPY") ||
+               name.contains("BUSH") || name.contains("ROSE");
     }
 
     private boolean isToolEffectiveOn(ItemStack tool, Material blockMat) {
@@ -348,7 +383,7 @@ public class DrillMiningListener implements Listener {
         }
 
         if (toolName.endsWith("_SHOVEL")) {
-            return matName.contains("DIRT") || matName.contains("GRASS_BLOCK") ||
+            return matName.contains("DIRT") || matName.contains("GRASS") ||
                    matName.contains("SAND") || matName.contains("GRAVEL") ||
                    matName.contains("CLAY") || matName.contains("SNOW") ||
                    matName.contains("SOUL") || matName.contains("MUD") ||
@@ -377,33 +412,36 @@ public class DrillMiningListener implements Listener {
     }
 
     private boolean isToolBrokenOrNearBreak(ItemStack tool) {
-        if (tool == null || tool.getType().isAir()) return true;
-        ItemMeta meta = tool.getItemMeta();
-        if (meta instanceof Damageable dmg) {
-            int max = tool.getType().getMaxDurability();
-            if (max > 0) {
-                return dmg.getDamage() >= (max - 2);
-            }
+        if (tool == null || tool.getType().name().endsWith("AIR")) return true;
+        int max = tool.getType().getMaxDurability();
+        if (max > 0) {
+            int damage = XDrillVersion.getItemDamage(tool);
+            return damage >= (max - 2);
         }
         return false;
     }
 
+    private static final org.bukkit.enchantments.Enchantment UNBREAKING_ENCH;
+    static {
+        org.bukkit.enchantments.Enchantment e = org.bukkit.enchantments.Enchantment.getByName("DURABILITY");
+        if (e == null) e = org.bukkit.enchantments.Enchantment.getByName("UNBREAKING");
+        UNBREAKING_ENCH = e;
+    }
+
     private boolean shouldDamageTool(ItemStack tool) {
-        int unbreaking = tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
+        int unbreaking = UNBREAKING_ENCH != null ? tool.getEnchantmentLevel(UNBREAKING_ENCH) : 0;
         if (unbreaking <= 0) return true;
         return Math.random() < (1.0 / (unbreaking + 1));
     }
 
     private void damageTool(Player player, ItemStack tool) {
-        ItemMeta meta = tool.getItemMeta();
-        if (meta instanceof Damageable dmg) {
-            dmg.setDamage(dmg.getDamage() + 1);
-            tool.setItemMeta(meta);
+        int max = tool.getType().getMaxDurability();
+        int newDmg = XDrillVersion.getItemDamage(tool) + 1;
+        XDrillVersion.setItemDamage(tool, newDmg);
 
-            if (dmg.getDamage() >= tool.getType().getMaxDurability()) {
-                player.getInventory().setItemInMainHand(null);
-                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-            }
+        if (max > 0 && newDmg >= max) {
+            XDrillVersion.setItemInHand(player, null);
+            XDrillVersion.playSound(player, "ENTITY_ITEM_BREAK", "ITEM_BREAK", 1.0f, 1.0f);
         }
     }
 }

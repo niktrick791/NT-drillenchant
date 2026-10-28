@@ -1,17 +1,15 @@
 package de.drill;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -27,14 +25,16 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) {
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player)) {
             if (args.length > 0 && (args[0].equalsIgnoreCase("reload") || args[0].equalsIgnoreCase("give"))) {
                 return handleAdminConsole(sender, args);
             }
             sender.sendMessage("§cDieser Befehl kann nur als Spieler ausgeführt werden.");
             return true;
         }
+
+        Player player = (Player) sender;
 
         if (args.length == 0) {
             return handleDefaultSwitch(player);
@@ -51,7 +51,7 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
         }
 
         if (sub.equals("toggle")) {
-            ItemStack hand = player.getInventory().getItemInMainHand();
+            ItemStack hand = XDrillVersion.getItemInHand(player);
             int level = drillEnchantment.getLevel(hand);
             if (level == 0) {
                 player.sendMessage("§8[§6Drill§8] §cBitte halte ein Werkzeug mit Drill in der Haupthand.");
@@ -60,10 +60,10 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
             boolean newState = drillEnchantment.toggleEnabled(hand);
             if (newState) {
                 player.sendMessage("§8[§6Drill§8] §aDrill-Funktion §e§lAKTIVIERT§a! (Modus: " + drillEnchantment.getMode(hand) + ")");
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
             } else {
                 player.sendMessage("§8[§6Drill§8] §cDrill-Funktion §4§lDEAKTIVIERT§c! (Normales 1x1 Abbauen aktiv)");
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
+                XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 0.8f);
             }
             return true;
         }
@@ -78,7 +78,7 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
                     return setDrillEnabled(player, false);
                 }
                 if (option.equals("toggle")) {
-                    ItemStack hand = player.getInventory().getItemInMainHand();
+                    ItemStack hand = XDrillVersion.getItemInHand(player);
                     int level = drillEnchantment.getLevel(hand);
                     if (level == 0) {
                         player.sendMessage("§8[§6Drill§8] §cBitte halte ein Werkzeug mit Drill in der Haupthand.");
@@ -87,15 +87,15 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
                     boolean newState = drillEnchantment.toggleEnabled(hand);
                     if (newState) {
                         player.sendMessage("§8[§6Drill§8] §aDrill-Funktion §e§lAKTIVIERT§a! (Modus: " + drillEnchantment.getMode(hand) + ")");
-                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                        XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
                     } else {
                         player.sendMessage("§8[§6Drill§8] §cDrill-Funktion §4§lDEAKTIVIERT§c! (Normales 1x1 Abbauen aktiv)");
-                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
+                        XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 0.8f);
                     }
                     return true;
                 }
                 if (option.equals("2x2") || option.equals("3x3")) {
-                    ItemStack hand = player.getInventory().getItemInMainHand();
+                    ItemStack hand = XDrillVersion.getItemInHand(player);
                     int level = drillEnchantment.getLevel(hand);
                     if (level == 0) {
                         player.sendMessage("§8[§6Drill§8] §cBitte halte ein Werkzeug mit Drill in der Haupthand.");
@@ -109,7 +109,7 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
                     drillEnchantment.setMode(hand, option);
                     drillEnchantment.setEnabled(hand, true);
                     player.sendMessage("§8[§6Drill§8] §aDrill-Modus gewechselt auf: §e§l" + option);
-                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                    XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
                     return true;
                 }
             }
@@ -199,7 +199,7 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean setDrillEnabled(Player player, boolean enabled) {
-        ItemStack hand = player.getInventory().getItemInMainHand();
+        ItemStack hand = XDrillVersion.getItemInHand(player);
         int level = drillEnchantment.getLevel(hand);
 
         if (level == 0) {
@@ -210,16 +210,16 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
         drillEnchantment.setEnabled(hand, enabled);
         if (enabled) {
             player.sendMessage("§8[§6Drill§8] §aDrill-Funktion §e§lAKTIVIERT§a! (Modus: " + drillEnchantment.getMode(hand) + ")");
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+            XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
         } else {
             player.sendMessage("§8[§6Drill§8] §cDrill-Funktion §4§lDEAKTIVIERT§c! (Normales 1x1 Abbauen aktiv)");
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
+            XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 0.8f);
         }
         return true;
     }
 
     private boolean handleDefaultSwitch(Player player) {
-        ItemStack hand = player.getInventory().getItemInMainHand();
+        ItemStack hand = XDrillVersion.getItemInHand(player);
         int level = drillEnchantment.getLevel(hand);
 
         if (level == 0) {
@@ -231,10 +231,10 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
             boolean newState = drillEnchantment.toggleEnabled(hand);
             if (newState) {
                 player.sendMessage("§8[§6Drill§8] §aDrill-Funktion §e§lAKTIVIERT§a! (Modus: " + drillEnchantment.getMode(hand) + ")");
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
             } else {
                 player.sendMessage("§8[§6Drill§8] §cDrill-Funktion §4§lDEAKTIVIERT§c! (Normales 1x1 Abbauen aktiv)");
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
+                XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 0.8f);
             }
             return true;
         }
@@ -242,13 +242,13 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
         if (!drillEnchantment.isEnabled(hand)) {
             drillEnchantment.setEnabled(hand, true);
             player.sendMessage("§8[§6Drill§8] §aDrill-Funktion §e§lAKTIVIERT§a! (Modus: " + drillEnchantment.getMode(hand) + ")");
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+            XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
             return true;
         }
 
         String newMode = drillEnchantment.toggleMode(hand);
         player.sendMessage("§8[§6Drill§8] §aDrill-Modus gewechselt auf: §e§l" + newMode);
-        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+        XDrillVersion.playSound(player, "UI_BUTTON_CLICK", "CLICK", 1.0f, 1.2f);
         return true;
     }
 
@@ -276,33 +276,68 @@ public class DrillCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            List<String> subs = new ArrayList<>(List.of("switch", "toggle", "on", "off", "info"));
+            List<String> subs = new ArrayList<String>(Arrays.asList("switch", "toggle", "on", "off", "info"));
             if (sender.hasPermission("drill.admin")) {
                 subs.add("book");
                 subs.add("give");
                 subs.add("reload");
             }
-            return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
+            List<String> result = new ArrayList<String>();
+            String prefix = args[0].toLowerCase(Locale.ROOT);
+            for (String s : subs) {
+                if (s.startsWith(prefix)) {
+                    result.add(s);
+                }
+            }
+            return result;
         }
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
             if (sub.equals("switch") || sub.equals("mode")) {
-                return List.of("on", "off", "toggle", "2x2", "3x3").stream().filter(s -> s.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
+                List<String> options = Arrays.asList("on", "off", "toggle", "2x2", "3x3");
+                List<String> result = new ArrayList<String>();
+                String prefix = args[1].toLowerCase(Locale.ROOT);
+                for (String o : options) {
+                    if (o.startsWith(prefix)) {
+                        result.add(o);
+                    }
+                }
+                return result;
             }
             if (sub.equals("book") && sender.hasPermission("drill.admin")) {
-                return List.of("1", "2", "3").stream().filter(s -> s.startsWith(args[1])).toList();
+                List<String> options = Arrays.asList("1", "2", "3");
+                List<String> result = new ArrayList<String>();
+                for (String o : options) {
+                    if (o.startsWith(args[1])) {
+                        result.add(o);
+                    }
+                }
+                return result;
             }
             if (sub.equals("give") && sender.hasPermission("drill.admin")) {
-                return Bukkit.getOnlinePlayers().stream().map(Player::getName)
-                        .filter(n -> n.toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
+                List<String> result = new ArrayList<String>();
+                String prefix = args[1].toLowerCase(Locale.ROOT);
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase(Locale.ROOT).startsWith(prefix)) {
+                        result.add(p.getName());
+                    }
+                }
+                return result;
             }
         }
 
         if (args.length == 3 && args[0].equalsIgnoreCase("give") && sender.hasPermission("drill.admin")) {
-            return List.of("1", "2", "3").stream().filter(s -> s.startsWith(args[2])).toList();
+            List<String> options = Arrays.asList("1", "2", "3");
+            List<String> result = new ArrayList<String>();
+            for (String o : options) {
+                if (o.startsWith(args[2])) {
+                    result.add(o);
+                }
+            }
+            return result;
         }
 
         return Collections.emptyList();
