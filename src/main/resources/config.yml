@@ -1,0 +1,46 @@
+# ==============================================================================
+# DrillEnchant Configuration
+# ==============================================================================
+
+drill:
+  enabled: true
+  max-level: 3
+
+  # Durability settings
+  damage-tool-per-block: true
+  stop-before-break: true # Prevents the tool from breaking accidentally on extra blocks
+
+  # Tilling with Hoe
+  hoe-tilling:
+    enabled: true
+    break-replaceable-plants: true # Breaks tall grass, flowers above tilled ground
+
+  # Discovery chances
+  loot-chests:
+    enabled: true
+    chance: 0.08 # 8% chance in dungeon/mineshaft/temple chests
+
+  villager-trades:
+    enabled: true
+    chance: 0.12 # 12% chance when librarian gets an enchanted book trade
+
+  enchanting-table:
+    enabled: true
+    chance: 0.15 # 15% base chance on applicable tools/books
+
+  fishing:
+    enabled: true
+    chance: 0.05
+
+  piglin-barter:
+    enabled: true
+    chance: 0.03
+
+# Messages
+messages:
+  prefix: "§8[§6§lDrill§8] §7"
+  mode-switched: "§aDrill-Modus geändert auf: §e%mode%"
+  mode-require-lvl3: "§cNur Werkzeuge mit Drill III können zwischen 2x2 und 3x3 wechseln!"
+  hold-tool: "§cBitte halte ein Werkzeug mit Drill III in der Haupthand."
+  no-permission: "§cDazu hast du keine Berechtigung."
+  book-received: "§aDu hast ein Verzaubertes Buch (§6Drill %level%§a) erhalten!"

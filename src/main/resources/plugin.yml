@@ -1,0 +1,23 @@
+name: DrillEnchant
+version: '${version}'
+main: de.drill.DrillPlugin
+api-version: '1.21'
+author: Antigravity
+description: 'Drill Verzauberung fuer 2x2 und 3x3 Abbauen und Feld-Bestellung.'
+
+commands:
+  drill:
+    description: Drill Hauptbefehl zum Umschalten und Verwalten
+    aliases: [bohrer]
+    usage: /drill [switch|info|book|give|reload]
+
+permissions:
+  drill.use:
+    description: Erlaubt das Nutzen und Umschalten des Drill Enchantments
+    default: true
+  drill.switch:
+    description: Erlaubt das Umschalten zwischen 2x2 und 3x3 Modus bei Drill III
+    default: true
+  drill.admin:
+    description: Zugriff auf Admin-Befehle wie /drill give, /drill book und /drill reload
+    default: op
